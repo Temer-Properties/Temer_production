@@ -1,0 +1,96 @@
+<odoo>
+    <record id="view_crm_reception_form" model="ir.ui.view">
+        <field name="name">crm.reception.form</field>
+        <field name="model">crm.reception</field>
+        <field name="arch" type="xml">
+            <form string="Reception Lead">
+                    <header>
+                        <field name="state_crm" widget="statusbar" statusbar_visible="draft,sent"/>
+
+                        <div class="d-flex justify-content-between align-items-center mb-4" style=" margin-right: 25px;">
+                        <button name="action_create_crm_lead" string="📤 Send to Pipeline" type="object"
+                            class="btn-primary oe_highlight"
+                            style="background-color: #3b82f6; color: white; border-radius: 6px; padding: 8px 16px; font-weight: bold;"
+                            invisible="state_crm !=  'draft'"
+                            />
+                        </div>
+
+                    </header>
+                <sheet>
+                    <div class="row">
+                        <!-- Left Column -->
+           <div class="col-md-6">
+                            <div class="card" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #3498db; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                                        Customer Information
+                                    </h5>
+                                    <group>
+                                        <field name="customer_name" string="👤 Customer Name"/>
+                                        <field name="country_id" string="🌍 Country"/>
+                                        
+                                        <!-- Phone Field Group -->
+                                        <label for="phone_prefix" string="📞 Phone"/>
+                                        <div class="d-flex align-items-center" style="gap: 3px;">
+                                            <field name="phone_prefix" 
+                                                   style="width: 40px; flex-shrink: 0;"/>
+                                            <field name="new_phone" 
+                                                   style="flex-grow: 1;"/>
+                                        </div>
+                                        
+                                        <field name="source_id" string="🎯 Source" readonly="[('is_call_center_user', '=', True)]"/>
+                                    </group>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="col-md-6">
+                            <div class="card" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #3498db; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                                        Additional Information
+                                    </h5>
+                                    <group>
+                                        <field name="site_ids" widget="many2many_tags" string="📍 Sites"/>
+                                        <field name="sales_person" string="🧑‍💼 Receptionist" readonly="1"/>
+                                        <field name="wing_id" string="🕊️ Wing" readonly="1"/>
+                                        <field name="assigned_manager_id" string="👨‍💼 Assigned Manager" readonly="1"/>
+                                        <field name="phone_number_message" string="✉️ Warning Message" readonly="1"/>
+                                    </group>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden fields -->
+            
+                    <field name="phone_number" invisible="1"/>
+                    <field name="full_phone" invisible="1"/>
+                    <field name="phone_number_message" invisible="1"/>
+                </sheet>
+
+                <div class="oe_chatter">
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_crm_reception_tree" model="ir.ui.view">
+        <field name="name">crm.reception.tree</field>
+        <field name="model">crm.reception</field>
+        <field name="arch" type="xml">
+            <tree string="Reception Lead">
+                <field name="name"/>
+                <field name="country_id"/>
+                <field name="new_phone"/>
+                <field name="assigned_manager_id"/>
+
+                <field name="source_id" widget="badge" options="{'class': {'Lead': 'bg-primary', 'Referral': 'bg-success'}}"/>
+                <field name="state_crm" widget="badge" options="{'class': {'new': 'bg-info', 'won': 'bg-success', 'lost': 'bg-danger'}}"/>
+
+            </tree>
+        </field>
+    </record>
+</odoo>

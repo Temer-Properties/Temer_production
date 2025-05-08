@@ -1,0 +1,12 @@
+<odoo>
+<menuitem id="menu_crm_custom_leads"
+              name="Call Center CRM"
+              parent="crm.crm_menu_root"
+              sequence="25"
+              action="action_crm_callcenter"/>
+<menuitem id="menu_crm_custom_leads_2"
+              name="Reception CRM"
+              parent="crm.crm_menu_root"
+              sequence="30"
+              action="action_crm_reception"/>
+</odoo>

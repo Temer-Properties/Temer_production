@@ -1,0 +1,64 @@
+<odoo>
+    <!-- FORM VIEW -->
+  <record id="view_property_wing_config_form" model="ir.ui.view">
+        <field name="name">property.wing.config.form</field>
+        <field name="model">property.wing.config</field>
+        <field name="arch" type="xml">
+            <form string="Wing Configuration">
+                <sheet>
+                    <group>
+                        <field name="source"/>
+
+                        <!-- Show only when source == 'wing' -->
+                        <field name="wing_id"
+                               invisible="source != 'wing'"
+                               required="source == 'wing'"/>
+                        <field name="name"
+                               invisible="source != 'wing'"/>
+                        <field name="manager_id"
+                               invisible="source != 'wing'"/>
+
+                        <!-- Show only when source == 'supervisor' -->
+                        <field name="supervisor_id"
+                               invisible="source != 'supervisor'"
+                               required="source == 'supervisor'"/>
+
+                        <field name="team_ids" widget="many2many_tags"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- TREE VIEW -->
+    <record id="view_property_wing_config_tree" model="ir.ui.view">
+        <field name="name">property.wing.config.tree</field>
+        <field name="model">property.wing.config</field>
+        <field name="arch" type="xml">
+            <tree string="Wing Configurations">
+                <field name="source"/>
+                <field name="wing_id"/>
+                <field name="supervisor_id"/>
+                <field name="name"/>
+                <field name="manager_id"/>
+            </tree>
+        </field>
+    </record>
+
+
+
+    <!-- ACTION -->
+    <record id="action_property_wing_config" model="ir.actions.act_window">
+        <field name="name">Wing Configurations</field>
+        <field name="res_model">property.wing.config</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- MENU -->
+
+    <menuitem id="menu_property_wing_config"
+              name="Wing Supervisor Configuration"
+              parent="crm.crm_menu_config"
+              action="action_property_wing_config"
+              sequence="20"/>
+</odoo>
