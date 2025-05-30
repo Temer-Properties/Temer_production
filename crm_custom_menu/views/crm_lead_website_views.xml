@@ -1,9 +1,9 @@
 <odoo>
-    <record id="view_crm_reception_form" model="ir.ui.view">
-        <field name="name">crm.reception.form</field>
-        <field name="model">crm.reception</field>
+    <record id="view_crm_website_form" model="ir.ui.view">
+        <field name="name">crm.website.form</field>
+        <field name="model">crm.website</field>
         <field name="arch" type="xml">
-            <form string="Reception Lead">
+            <form string="Website Lead">
                     <header>
                         <field name="state_crm" widget="statusbar" statusbar_visible="draft,sent"/>
 
@@ -53,7 +53,7 @@
                                     </h5>
                                     <group>
                                         <field name="site_ids" widget="many2many_tags" string="📍 Sites"/>
-                                        <field name="sales_person" string="🧑‍💼 Receptionist" readonly="1"/>
+                                        <field name="sales_person" string="🧑‍💼 Website Admin" readonly="1"/>
                                         <field name="wing_id" string="🕊️ Wing" readonly="1" invisible="state_crm != 'draft' or phone_number_message != False"/>
                                         <field name="assigned_manager_id" string="👨‍💼 Assigned Manager" readonly="1" invisible="state_crm != 'draft' or phone_number_message != False"/>
                                         <field name="phone_number_message" string="✉️ Warning Message" readonly="1"/>
@@ -77,11 +77,11 @@
         </field>
     </record>
 
-    <record id="view_crm_reception_tree" model="ir.ui.view">
-        <field name="name">crm.reception.tree</field>
-        <field name="model">crm.reception</field>
+    <record id="view_crm_website_tree" model="ir.ui.view">
+        <field name="name">crm.website.tree</field>
+        <field name="model">crm.website</field>
         <field name="arch" type="xml">
-            <tree string="Reception Lead">
+            <tree string="Website Lead">
                 <field name="name"/>
                 <field name="country_id"/>
                 <field name="new_phone"/>

@@ -3,10 +3,18 @@
               name="Call Center CRM"
               parent="crm.crm_menu_root"
               sequence="25"
-              action="action_crm_callcenter"/>
+              action="action_crm_callcenter"
+              groups="crm_custom_menu.group_call_center"/>
 <menuitem id="menu_crm_custom_leads_2"
               name="Reception CRM"
               parent="crm.crm_menu_root"
               sequence="30"
-              action="action_crm_reception"/>
+              action="action_crm_reception"
+              groups="crm_custom_menu.group_reception"/>
+<menuitem id="menu_crm_custom_leads_3"
+              name="Website CRM"
+              parent="crm.crm_menu_root"
+              sequence="35"
+              action="action_crm_website"
+              groups="crm_custom_menu.group_Crmwebsite"/>
 </odoo>

@@ -3,4 +3,6 @@ access_crm_callcenter,Crm_Callcenter,model_crm_callcenter,,1,1,1,1
 access_crm_callcenter_phone,Crm_Callcenter_Phone,model_crm_callcenter_phone,,1,1,1,1
 access_crm_reception,Crm_Reception,model_crm_reception,,1,1,1,1
 access_crm_reception_phone,Crm_Crm_Reception_Phone,model_crm_reception_phone,,1,1,1,1
+access_crm_website,Crm_Website,model_crm_website,,1,1,1,1
+access_crm_website_phone,Crm_Crm_Website_Phone,model_crm_website_phone,,1,1,1,1
 access_property_wing_config,Property_Wing_Config,model_property_wing_config,,1,1,1,1

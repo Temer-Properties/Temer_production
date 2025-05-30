@@ -14,7 +14,8 @@
                         <button name="action_create_crm_lead" string="📤 Send to pipline" type="object"
                                 class="btn-primary oe_highlight"
                                 style="background-color: #3b82f6; color: white; border-radius: 6px; padding: 8px 16px; font-weight: bold;" 
-                                invisible="state_crm !=  'draft'"
+                              invisible="state_crm != 'draft' or phone_number_message != False"
+
                                 />
                     </div>
                 </header>
@@ -58,8 +59,8 @@
                          <group>
                         <field name="site_ids" widget="many2many_tags" string="📍 Sites"/>
                         <field name="sales_person" string="🧑‍💼 Call center person" readonly="1"/>
-                        <field name="wing_id" string="🕊️ Wing" readonly="1"/>
-                        <field name="assigned_manager_id" string="👨‍💼 Assigned Manager" readonly="1"/>
+                        <field name="wing_id" string="🕊️ Wing" readonly="1" invisible="phone_number_message != False"/>
+                        <field name="assigned_manager_id" string="👨‍💼 Assigned Manager" readonly="1" invisible="phone_number_message != False"/>
                         <field name="phone_number_message" string="✉️ Warnning Message" readonly="1"/>
                     </group>
 
@@ -94,7 +95,7 @@
                <field name="name"/>
                 <field name="country_id"/>
                 <field name="new_phone"/>
-                <field name="assigned_manager_id"/>
+                <!-- <field name="assigned_manager_id"/> -->
                 <field name="source_id" widget="badge" />
                 <field name="state_crm" widget="badge" />
 

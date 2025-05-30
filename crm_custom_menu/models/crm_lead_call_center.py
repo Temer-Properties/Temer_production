@@ -20,12 +20,19 @@ class CrmLeadCallCenter(models.Model):
 
     name = fields.Char(string='Name', compute="compute_lead_name", required=False)
     customer_name = fields.Char(string='Customer',tracking=True, required=True)
-    site_ids = fields.Many2many('property.site', string="site", tracking=True)
+    site_ids = fields.Many2many('property.site', string="site", tracking=True, required=True)
     country_id = fields.Many2one('res.country', string="Country", default=lambda self: self.env.ref('base.et').id)
     phone_number = fields.Char(string="Phone Number")
     full_phone = fields.Many2many('crm.callcenter.phone', string="All Phone no", help="List of all phone numbers.", domain="[('id', 'not in', full_phone_ids)]" )
     secondary_phone = fields.Char(string="Secondary Phone", invisible=True)
     phone_prefix = fields.Char(string="Phone Prefix", compute="_compute_phone_prefix")
+    user_id = fields.Many2one(
+        'res.users',
+        string="Salesperson",
+        default=lambda self: self.env.user,
+        readonly=True,
+        help="The salesperson responsible for this lead."
+    )
     full_phone_ids = fields.Many2many(
         'crm.callcenter.phone',
         store=False,
@@ -63,6 +70,13 @@ class CrmLeadCallCenter(models.Model):
         readonly=True,
         help="The wing manager assigned to this lead."
     )
+    user_id = fields.Many2one(
+        'res.users',
+        string="Salesperson",
+        default=lambda self: self.env.user,
+        readonly=True,
+        help="The salesperson responsible for this lead."
+    )
     phone_number_message = fields.Char(string="Phone Number Message", readonly=True, help="Message displayed if the phone number is already registered.")
     state_crm = fields.Selection([
                 ('draft', 'Draft'),
@@ -73,39 +87,32 @@ class CrmLeadCallCenter(models.Model):
         string="CRM Stage",
         help="The stage to assign to the lead when it is created."
     )
-    
+
     
     # Action Methods
     def action_create_crm_lead(self):
-        """Create a CRM Lead and assign explicitly to the assigned manager."""
+        """Create a CRM Lead assigned to the manager, but track as created by the logged-in user."""
         self.ensure_one()
 
         if not self.assigned_manager_id:
+            
             raise ValidationError("No assigned manager for this reception record.")
 
         assigned_user = self.assigned_manager_id
 
-        
-    
-        # Validate required fields
         if not self.customer_name or not self.customer_name.strip():
             raise ValidationError(_("Customer name is required"))
         
         if not self.new_phone:
             raise ValidationError(_("Primary phone number is required"))
 
-        # Clean the phone number explicitly
         clean_phone = self.new_phone.replace('+251', '').replace('251', '').strip()
         if not clean_phone:
             raise ValidationError(_("Invalid phone number format"))
 
-        # Handle source_id explicitly
-        source_id = self.source_id.id if self.source_id else self.env['utm.source'].search([('name', '=', '6033')], limit=1).id
+        source_id = self.source_id.id or self.env['utm.source'].search([('name', '=', '6033')], limit=1).id
+        stage_id = self.crm_stage_id.id or self.env['crm.stage'].search([], limit=1).id
 
-        # Determine the stage (crm_stage_id)
-        stage_id = self.crm_stage_id.id if self.crm_stage_id else self.env['crm.stage'].search([], limit=1).id
-
-        # Prepare lead values explicitly assigning user_id to assigned_manager_id
         lead_values = {
             'name': self.name or f"Lead from {self.customer_name.strip()}",
             'customer_name': self.customer_name.strip(),
@@ -113,32 +120,31 @@ class CrmLeadCallCenter(models.Model):
             'site_ids': [(6, 0, self.site_ids.ids)],
             'country_id': self.country_id.id,
             'source_id': source_id,
-            'user_id': assigned_user.id,  # explicitly assigned manager id
-            'stage_id': stage_id,  # explicitly assign the stage
+            'user_id': assigned_user.id,  # Assigned manager
+            'stage_id': stage_id,
             'type': 'opportunity',
         }
 
-      
-        # Create the CRM lead explicitly
-        # lead = self.env['crm.lead'].sudo().create(lead_values)
+        
         lead = self.env['crm.lead'].with_user(assigned_user).create(lead_values)
 
+
+        # Optional: Subscribe the manager to the lead updates
         if assigned_user.partner_id:
-                    lead.message_subscribe(partner_ids=[assigned_user.partner_id.id])
+            lead.message_subscribe(partner_ids=[assigned_user.partner_id.id])
 
-        # Mark the record as sent explicitly
+        # Optional: Log message in chatter saying who created it
+        lead.message_post(
+            body=_("Lead was created by %s and assigned to %s.") % (
+                self.env.user.name,
+                assigned_user.name
+            ),
+            message_type="comment"
+        )
+
         self.state_crm = 'sent'
-
-        return {
-            'name': _('CRM Lead'),
-            'view_mode': 'form',
-            'res_model': 'crm.lead',
-            'res_id': lead.id,
-            'type': 'ir.actions.act_window',
-            'context': {
-                'default_user_id': assigned_user.id
-            }
-        }
+        return True
+                     
 
     @api.constrains('source_id')
     def _check_source_id(self):
@@ -217,17 +223,34 @@ class CrmLeadCallCenter(models.Model):
                 full_phone_number = f"+251{clean_phone}"
                 
                 # Check for duplicates
+                # message = ""
+                # existing_phone = self.env['crm.callcenter.phone'].search([('name', '=', full_phone_number)], limit=1)
+                # if existing_phone:
+                #     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
+                #     customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
+                #     message += f'Phone number already registered with {customer_name} Customer in Call Center CRM. '
+                
+                # existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
+                # if existing_lead:
+                #     customer_name = existing_lead.contact_name or existing_lead.partner_id.name or "Unknown Customer"
+                #     message += f'Phone number already registered with {customer_name} Customer in CRM Leads.'
+                # Check for duplicates
                 message = ""
                 existing_phone = self.env['crm.callcenter.phone'].search([('name', '=', full_phone_number)], limit=1)
                 if existing_phone:
                     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
-                    customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
-                    message += f'Phone number already registered with {customer_name} Customer in Call Center CRM. '
-                
+                    if callcenter_record:
+                        customer_name = callcenter_record.customer_name or "Unknown Customer"
+                        sales_person = callcenter_record.user_id.name or "Unknown Salesperson"
+                    else:
+                        customer_name, sales_person = "Unknown Customer", "Unknown Salesperson"
+                    message += f'In Call Center CRM registered by Sales Person: {sales_person}. '
+
                 existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
                 if existing_lead:
                     customer_name = existing_lead.contact_name or existing_lead.partner_id.name or "Unknown Customer"
-                    message += f'Phone number already registered with {customer_name} Customer in CRM Leads.'
+                    sales_person = existing_lead.user_id.name or "Unknown Salesperson"
+                message += f'\nIn CRM Leads registered by Sales Person: {sales_person}.'
                 
                 if message:
                     vals['phone_number_message'] = message
@@ -248,17 +271,33 @@ class CrmLeadCallCenter(models.Model):
             clean_phone = vals['new_phone'].replace('+251', '').replace('251', '').strip()
             full_phone_number = f"+251{clean_phone}"
             
+            # message = ""
+            # existing_phone = self.env['crm.callcenter.phone'].search([('name', '=', full_phone_number)], limit=1)
+            # if existing_phone:
+            #     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
+            #     customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
+            #     message += f'Phone number already registered with {customer_name} Customer in Call Center CRM. '
+            
+            # existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
+            # if existing_lead:
+            #     customer_name = existing_lead.contact_name or existing_lead.partner_id.name or "Unknown Customer"
+            #     message += f'Phone number already registered with {customer_name} Customer in CRM Leads.'
             message = ""
             existing_phone = self.env['crm.callcenter.phone'].search([('name', '=', full_phone_number)], limit=1)
             if existing_phone:
                 callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
-                customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
-                message += f'Phone number already registered with {customer_name} Customer in Call Center CRM. '
-            
+                if callcenter_record:
+                    customer_name = callcenter_record.customer_name or "Unknown Customer"
+                    sales_person = callcenter_record.user_id.name or "Unknown Salesperson"
+                else:
+                    customer_name, sales_person = "Unknown Customer", "Unknown Salesperson"
+                message += f'In Call Center registerd by Sales Person: {sales_person}. '
+
             existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
             if existing_lead:
                 customer_name = existing_lead.contact_name or existing_lead.partner_id.name or "Unknown Customer"
-                message += f'Phone number already registered with {customer_name} Customer in CRM Leads.'
+                sales_person = existing_lead.user_id.name or "Unknown Salesperson"
+                message += f'\nIn CRM Leads registered by Sales Person: {sales_person}.'
             
             if message:
                 vals['phone_number_message'] = message

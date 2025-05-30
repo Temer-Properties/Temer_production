@@ -4,21 +4,21 @@ import phonenumbers
 import logging
 _logger = logging.getLogger(__name__)
 
-class CrmReceptionPhone(models.Model):
-    _name = 'crm.reception.phone'
-    _description = 'Reception Phone Numbers'
+class CrmWebsitePhone(models.Model):
+    _name = 'crm.website.phone'
+    _description = 'Website Phone Numbers'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(string="Phone Number", required=True, tracking=True)
     crm_lead_id = fields.Many2one('crm.lead', string="CRM Lead")
-    reception_record_id = fields.Many2one('crm.reception', string="Reception Record")
+    website_record_id = fields.Many2one('crm.website', string="Website Record")
     is_walk_in = fields.Boolean(string="Walk-in Customer", default=True)
 
 
-class CrmReception(models.Model):
-    _name = 'crm.reception'
+class CrmWebsite(models.Model):
+    _name = 'crm.website'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'Reception CRM Lead'
+    _description = 'Website CRM Lead'
     _rec_name = 'name'
 
     # Fields
@@ -37,7 +37,7 @@ class CrmReception(models.Model):
 
     # Phone number tracking
     full_phone = fields.Many2many(
-        'crm.reception.phone', 
+        'crm.website.phone', 
         string="All Phone Numbers",
         help="List of all phone numbers associated with this customer"
     )
@@ -49,13 +49,13 @@ class CrmReception(models.Model):
         default=lambda self: self._default_source_id(),
         tracking=True
     )
-    is_reception_user = fields.Boolean(
-        string="Is Reception User",
-        compute="_compute_is_reception_user"
+    is_website_user = fields.Boolean(
+        string="Is Website User",
+        compute="_compute_is_website_user"
     )
     sales_person = fields.Many2one(
         'res.users',
-        string="Receptionist",
+        string="Website Admin",
         default=lambda self: self.env.user,
         readonly=True
     )
@@ -85,8 +85,8 @@ class CrmReception(models.Model):
     ], string="Status", default='draft', tracking=True)
 
 
-    crm_reception_phone_id = fields.Many2one(
-        'crm.reception.phone',
+    crm_website_phone_id = fields.Many2one(
+        'crm.website.phone',
         string="Phone",
         required=False  # or not
     )
@@ -99,7 +99,7 @@ class CrmReception(models.Model):
                 site_names = '-'.join([site.name for site in rec.site_ids]) if rec.site_ids else ''
                 rec.name = f'{rec.customer_name}-{site_names}' if site_names else rec.customer_name
             else:
-                rec.name = "New Reception Lead"
+                rec.name = "New Website Lead"
 
     @api.depends('country_id')
     def _compute_phone_prefix(self):
@@ -107,28 +107,28 @@ class CrmReception(models.Model):
             rec.phone_prefix = f"+{rec.country_id.phone_code}" if rec.country_id and rec.country_id.phone_code else ""
 
     @api.depends_context('uid')
-    def _compute_is_reception_user(self):
-        reception_group = self.env.ref('crm_custom_menu.group_reception', raise_if_not_found=False)
+    def _compute_is_website_user(self):
+        website_group = self.env.ref('crm_custom_menu.group_Crmwebsite', raise_if_not_found=False)
         for record in self:
-            record.is_reception_user = reception_group and self.env.user in reception_group.users
+            record.is_website_user = website_group and self.env.user in website_group.users
 
     # Default Methods
     @api.model
     def _default_source_id(self):
-        reception_group = self.env.ref('crm_custom_menu.group_reception', raise_if_not_found=False)
-        if reception_group and self.env.user in reception_group.users:
-            return self.env['utm.source'].search([('name', '=', 'Walk In')], limit=1).id
+        website_group = self.env.ref('crm_custom_menu.group_Crmwebsite', raise_if_not_found=False)
+        if website_group and self.env.user in website_group.users:
+            return self.env['utm.source'].search([('name', '=', 'Website')], limit=1).id
         return False
 
     # Constraints and Validations
     @api.constrains('source_id')
     def _check_source_id(self):
-        reception_group = self.env.ref('crm_custom_menu.group_reception', raise_if_not_found=False)
+        website_group = self.env.ref('crm_custom_menu.group_Crmwebsite', raise_if_not_found=False)
         for record in self:
-            if reception_group and self.env.user in reception_group.users:
-                walk_in_source = self.env['utm.source'].search([('name', '=', 'Walk In')], limit=1)
+            if website_group and self.env.user in website_group.users:
+                walk_in_source = self.env['utm.source'].search([('name', '=', 'Website')], limit=1)
                 if record.source_id != walk_in_source:
-                    raise AccessError(_('Reception users must keep the source as "Walk In"'))
+                    raise AccessError(_('Website users must keep the source as "Website"'))
 
     @api.onchange('new_phone')
     def _onchange_validate_phone(self):
@@ -146,7 +146,7 @@ class CrmReception(models.Model):
         self.ensure_one()
 
         if not self.assigned_manager_id:
-            raise ValidationError("No assigned manager for this reception record.")
+            raise ValidationError("No assigned manager for this website record.")
 
         assigned_user = self.assigned_manager_id
 
@@ -160,7 +160,7 @@ class CrmReception(models.Model):
         if not clean_phone:
             raise ValidationError(_("Invalid phone number format"))
 
-        source_id = self.source_id.id or self.env['utm.source'].search([('name', '=', 'Walk In')], limit=1).id
+        source_id = self.source_id.id or self.env['utm.source'].search([('name', '=', 'Website')], limit=1).id
         stage_id = self.crm_stage_id.id or self.env['crm.stage'].search([], limit=1).id
 
         lead_values = {
@@ -204,13 +204,13 @@ class CrmReception(models.Model):
 
     def _get_or_create_phone_record(self, phone_number):
         """Find or create phone record"""
-        phone_record = self.env['crm.reception.phone'].search([
+        phone_record = self.env['crm.website.phone'].search([
             ('name', 'ilike', phone_number)
         ], limit=1)
         
         if not phone_record:
             formatted_phone = f"+251{phone_number}"
-            phone_record = self.env['crm.reception.phone'].create({
+            phone_record = self.env['crm.website.phone'].create({
                 'name': formatted_phone,
                 'is_walk_in': True
             })
@@ -282,7 +282,7 @@ class CrmReception(models.Model):
             full_phone_number = f"+251{clean_phone}"
             
             # message = ""
-            # existing_phone = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+            # existing_phone = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
             # if existing_phone:
             #     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
             #     customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
@@ -297,7 +297,7 @@ class CrmReception(models.Model):
             #     vals['phone_number_message'] = message
 
             message = ""
-            existing_phone = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+            existing_phone = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
             if existing_phone:
                 callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
                 if callcenter_record:
@@ -305,7 +305,7 @@ class CrmReception(models.Model):
                     sales_person = callcenter_record.sales_person.name or "Unknown Salesperson"
                 else:
                     customer_name, sales_person = "Unknown Customer", "Unknown Salesperson"
-                message += f'In Reception CRM registerd by Sales Person: {sales_person}. '
+                message += f'In Website CRM registerd by Sales Person: {sales_person}. '
 
             existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
             if existing_lead:
@@ -316,9 +316,9 @@ class CrmReception(models.Model):
             if message:
                 vals['phone_number_message'] = message
             
-            phone_entry = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+            phone_entry = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
             if not phone_entry:
-                phone_entry = self.env['crm.reception.phone'].create({'name': full_phone_number})
+                phone_entry = self.env['crm.website.phone'].create({'name': full_phone_number})
             vals['full_phone'] = [(4, phone_entry.id)]
         
         # Handle other create logic (wing, source, etc.)
@@ -333,7 +333,7 @@ class CrmReception(models.Model):
         vals['wing_id'] = wing.id
         vals['assigned_manager_id'] = wing.manager_id.id if wing.manager_id else False
         
-        return super(CrmReception, self).create(vals)
+        return super(CrmWebsite, self).create(vals)
 
 
     def write(self, vals):
@@ -345,7 +345,7 @@ class CrmReception(models.Model):
                 
                 # Check for duplicates
                 # message = ""
-                # existing_phone = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+                # existing_phone = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
                 # if existing_phone:
                 #     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
                 #     customer_name = callcenter_record.customer_name if callcenter_record else "Unknown Customer"
@@ -361,8 +361,9 @@ class CrmReception(models.Model):
                 # else:
                 #     vals['phone_number_message'] = False
 
+
                 message = ""
-                existing_phone = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+                existing_phone = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
                 if existing_phone:
                     callcenter_record = self.search([('full_phone', 'in', existing_phone.ids)], limit=1)
                     if callcenter_record:
@@ -370,7 +371,7 @@ class CrmReception(models.Model):
                         sales_person = callcenter_record.sales_person.name or "Unknown Salesperson"
                     else:
                         customer_name, sales_person = "Unknown Customer", "Unknown Salesperson"
-                    message += f'In Reception CRM registered by Sales Person: {sales_person}. '
+                    message += f'In Website CRM registered by Sales Person: {sales_person}. '
 
                 existing_lead = self.env['crm.lead'].search([('phone_ids', '=', full_phone_number)], limit=1)
                 if existing_lead:
@@ -382,14 +383,14 @@ class CrmReception(models.Model):
                     vals['phone_number_message'] = message
                 else:
                     vals['phone_number_message'] = False
-
+                
                 # Add to full_phone if needed
-                phone_entry = self.env['crm.reception.phone'].search([('name', '=', full_phone_number)], limit=1)
+                phone_entry = self.env['crm.website.phone'].search([('name', '=', full_phone_number)], limit=1)
                 if not phone_entry:
-                    phone_entry = self.env['crm.reception.phone'].create({'name': full_phone_number})
+                    phone_entry = self.env['crm.website.phone'].create({'name': full_phone_number})
                 vals['full_phone'] = [(4, phone_entry.id)]
         
-        return super(CrmReception, self).write(vals)
+        return super(CrmWebsite, self).write(vals)
 
 
     def _check_duplicate_phones(self, phone_number):
@@ -397,18 +398,18 @@ class CrmReception(models.Model):
         clean_phone = self._clean_phone_number(phone_number)
         message = ""
         
-        # Check in reception records
-        reception_phone = self.env['crm.reception.phone'].search([
+        # Check in website records
+        website_phone = self.env['crm.website.phone'].search([
             ('name', 'ilike', clean_phone)
         ], limit=1)
         
-        if reception_phone:
-            reception_record = self.search([
-                ('full_phone', 'in', reception_phone.ids)
+        if website_phone:
+            website_record = self.search([
+                ('full_phone', 'in', website_phone.ids)
             ], limit=1)
-            if reception_record:
-                message += _('Phone already registered with reception record for %s. ') % (
-                    reception_record.customer_name or 'unknown customer')
+            if website_record:
+                message += _('Phone already registered with website record for %s. ') % (
+                    website_record.customer_name or 'unknown customer')
         
         # Check in CRM leads
         crm_lead = self.env['crm.lead'].search([
