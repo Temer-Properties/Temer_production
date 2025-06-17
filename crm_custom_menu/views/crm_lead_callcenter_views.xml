@@ -1,104 +1,74 @@
 <odoo>
-    <record id="view_crm_callcenter_form" model="ir.ui.view">
+ <record id="view_crm_callcenter_form" model="ir.ui.view">
         <field name="name">crm.callcenter.form</field>
         <field name="model">crm.callcenter</field>
         <field name="arch" type="xml">
             <form string="Call Center Lead">
                 <header>
-                <field name="state_crm" widget="statusbar" statusbar_visible="draft,sent"/>
-                    <div class="d-flex justify-content-between align-items-center mb-4" style=" margin-right: 25px;">
-                        <!-- <div class="d-flex align-items-center">
-                            <img src="/crm_custom_menu/static/description/temerlogo.png" alt="Logo" style="height: 40px; margin-right: 25px;" />
-                            <h2 style="margin: 0; color: #2c3e50;">Call Center</h2>
-                        </div> -->
-                        <button name="action_create_crm_lead" string="📤 Send to pipline" type="object"
-                                class="btn-primary oe_highlight"
-                                style="background-color: #3b82f6; color: white; border-radius: 6px; padding: 8px 16px; font-weight: bold;" 
-                              invisible="state_crm != 'draft' or phone_number_message != False"
-
-                                />
-                    </div>
+                    <field name="state_crm" widget="statusbar" statusbar_visible="draft,sent"/>
+                    <button name="action_create_crm_lead"
+                        string="📤 Send to pipeline"
+                        type="object"
+                        class="btn-primary oe_highlight"
+                        style="background-color: #3b82f6; color: white; border-radius: 6px; padding: 8px 16px; font-weight: bold;"
+                        invisible="state_crm != 'draft' or phone_number_message != False"
+                        />
                 </header>
-
                 <sheet>
-                    <div class="row">
-                        <!-- Left Column -->
-                        <div class="col-md-6">
-                            <div class="card" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                                <div class="card-body">
-                                    <h5 class="card-title" style="color: #3498db; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-                                        Customer Information
-                                    </h5>
-                                    <group>
-                                        <!-- <field name="customer_name"/>
-                                        <field name="country_id"/> -->
-                                                      <field name="customer_name" string="👤 Customer Name"/>
-                        <field name="country_id" string="🌍 Country"/>
-                                        <!-- <field name="new_phone" string="Primary Phone"/>
-                                        <field name="source_id" readonly="[('is_call_center_user', '=', True)]"/> -->
-                                       <label for="phone_prefix" string="📞 Phone"/>
-                                        <div class="d-flex align-items-center" style="gap: 3px;">
-                                            <field name="phone_prefix" 
-                                                   style="width: 40px; flex-shrink: 0;"/>
-                                            <field name="new_phone" 
-                                                   style="flex-grow: 1;"/>
-                                        </div>
-    <field name="source_id" string="🎯 Source" readonly="[('is_call_center_user', '=', True)]"/>
-                                    </group>
-                                </div>
+                    <group>
+                        <group>
+                            <field name="customer_name" string="👤 Customer Name"/>
+                            <field name="country_id" string="🌍 Country"/>
+                            <label for="phone_prefix" string="📞 Phone"/>
+                            <div>
+                                <field name="phone_prefix"/>
+                                <field name="new_phone"/>
                             </div>
-                        </div>
-
-                        <!-- Right Column -->
-                        <div class="col-md-6">
-                            <div class="card" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                                <div class="card-body">
-                                    <h5 class="card-title" style="color: #3498db; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-                                        Additional Information
-                                    </h5>
-                         <group>
-                        <field name="site_ids" widget="many2many_tags" string="📍 Sites"/>
-                        <field name="sales_person" string="🧑‍💼 Call center person" readonly="1"/>
-                        <field name="wing_id" string="🕊️ Wing" readonly="1" invisible="phone_number_message != False"/>
-                        <field name="assigned_manager_id" string="👨‍💼 Assigned Manager" readonly="1" invisible="phone_number_message != False"/>
-                        <field name="phone_number_message" string="✉️ Warnning Message" readonly="1"/>
+                            <field name="source_id" string="🎯 Source" readonly="1"/>
+                            <field name="site_ids" widget="many2many_tags" string="📍 Sites"/>
+                        </group>
+                        <group>
+                        
+                            <field name="sales_person" string="🧑‍💼 Call center person" readonly="1"/>
+                            <field name="nominated_wing_id" string="🏅 Wing" readonly="1"/>
+                            <!-- <field name="assigned_wing_id" string="🕊️ Assigned Wing" readonly="1"
+                                invisible="state_crm != 'sent'"/> -->
+                                                           <!-- <field name="nominated_supervisor_id" string="🌟 Supervisor" readonly="1"
+                                /> -->
+                             <field name="nominated_salesperson_id" string="👤 Nominee Person" readonly="1" invisible="state_crm != 'draft'"/>
+                             <field name="assigned_salesperson_id" string="👤 Assigned Person." readonly="1" invisible="state_crm != 'sent'"/>
+                                
+                            <!-- <field name="assigned_supervisor_id" string="🧑‍💼 Assigned Supervisor" readonly="1"
+                                invisible="state_crm != 'sent'"/> -->
+                            <field name="phone_number_message" string="✉️ Message" readonly="1"
+                                invisible="not phone_number_message"/>
+                        </group>
                     </group>
 
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Hidden fields -->
                     <field name="phone_prefix" invisible="1"/>
                     <field name="phone_number" invisible="1"/>
                     <field name="full_phone" invisible="1"/>
                     <field name="full_phone_ids" invisible="1"/>
                     <field name="phone_number_message" invisible="1"/>
-
                 </sheet>
-
                 <div class="oe_chatter">
                     <field name="message_ids"/>
                 </div>
-
-
             </form>
         </field>
     </record>
-
     <record id="view_crm_callcenter_tree" model="ir.ui.view">
         <field name="name">crm.callcenter.tree</field>
         <field name="model">crm.callcenter</field>
         <field name="arch" type="xml">
             <tree string="Call Center Lead">
-               <field name="name"/>
+                <field name="name"/>
                 <field name="country_id"/>
                 <field name="new_phone"/>
-                <!-- <field name="assigned_manager_id"/> -->
-                <field name="source_id" widget="badge" />
-                <field name="state_crm" widget="badge" />
-
+                <field name="source_id" widget="badge"/>
+                <field name="state_crm" widget="badge"/>
+                <!-- <field name="nominated_supervisor_id"/> -->
+                <field name="assigned_salesperson_id"/>
             </tree>
         </field>
     </record>
