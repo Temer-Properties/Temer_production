@@ -48,6 +48,12 @@
                 <field name="category_id" ref="wing_selection_category"/>
             </record>
 
+            <!-- Group: Team Raha -->
+            <record id="group_team_Raha_access" model="res.groups">
+                <field name="name">Team Raha Access</field>
+                <field name="category_id" ref="wing_selection_category"/>
+            </record>
+
             <record id="access_agent_user_group" model="res.groups">
                 <field name="name">Agent User Group</field>
                 <field name="category_id" ref="agent_group"/>

@@ -38,6 +38,7 @@
         'views/team_activity_reports.xml',
         'views/lead_analysis_reports.xml',
         'views/team_activity_report_menu.xml',
+
             ],
     "assets": {
         "web.assets_backend": [ 

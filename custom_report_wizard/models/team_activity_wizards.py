@@ -72,6 +72,8 @@ class TeamActivityWizard(models.TransientModel):
                 wings.append((str(w_id), w_name))
             if name_lower == "team - taj" and user.has_group('custom_report_wizard.group_team_taj_access'):
                 wings.append((str(w_id), w_name))
+            if name_lower == "team - raha" and user.has_group('custom_report_wizard.group_team_Raha_access'):
+                wings.append((str(w_id), w_name))
         return wings
 
 
@@ -106,6 +108,125 @@ class TeamActivityWizard(models.TransientModel):
                 wing_condition = " AND cl.wing_id = %s"
                 params.append(int(self.wing_id))
 
+        # query = f"""
+        # WITH filtered_leads AS (
+        #     SELECT cl.id, cl.stage_id, cl.user_id, cl.supervisor_id, cl.wing_id
+        #     FROM crm_lead cl
+        #     WHERE cl.create_date BETWEEN %s AND %s {wing_condition}
+        # ),
+        # lead_events AS (
+        #     SELECT
+        #         fl.id AS lead_id,
+        #         rp.name AS sales_person,
+        #         rp_sup.name AS supervisor_name,
+        #         rp_wing.name AS wing_manager_name,
+        #         COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+        #         CASE
+        #             WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%expired%%'     THEN 'Expired'
+        #             WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%won%%'         THEN 'Won'
+        #             WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%reservation%%' THEN 'Reservation'
+        #             WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%follow%%'      THEN 'Follow Up'
+        #             WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%prospect%%'    THEN 'Prospect'
+        #             ELSE NULL
+        #         END AS event_type
+        #     FROM filtered_leads fl
+        #     JOIN crm_stage stage ON fl.stage_id = stage.id
+        #     JOIN res_users ru ON fl.user_id = ru.id
+        #     JOIN res_partner rp ON ru.partner_id = rp.id
+        #     JOIN property_sales_supervisor pss ON fl.supervisor_id = pss.id
+        #     JOIN res_users ru_sup ON pss.name = ru_sup.id
+        #     JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
+        #     LEFT JOIN property_sales_wing psw ON fl.wing_id = psw.id
+        #     LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
+        #     LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
+        #     LEFT JOIN property_wing_config pwc ON fl.wing_id = pwc.id
+        # ),
+        # activity_events AS (
+        #     SELECT
+        #         cl.id AS lead_id,
+        #         rp.name AS sales_person,
+        #         rp_sup.name AS supervisor_name,
+        #         rp_wing.name AS wing_manager_name,
+        #         COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+        #         CASE
+        #             WHEN mm.subtype_id = 3 AND mtv.new_value_char IS NULL THEN
+        #                 CASE mm.mail_activity_type_id
+        #                     WHEN 1 THEN 'Email'
+        #                     WHEN 2 THEN 'SMS'
+        #                     WHEN 4 THEN 'Call'
+        #                     WHEN 8 THEN 'Office Visit'
+        #                     WHEN 9 THEN 'Site Visit'
+        #                     ELSE NULL
+        #                 END
+        #             WHEN mtv.new_value_char = 'Won' THEN 'Won'
+        #             ELSE NULL
+        #         END AS event_type
+        #     FROM crm_lead cl
+        #     JOIN filtered_leads fl ON fl.id = cl.id
+        #     JOIN res_users ru ON cl.user_id = ru.id
+        #     JOIN res_partner rp ON ru.partner_id = rp.id
+        #     JOIN mail_message mm ON mm.model = 'crm.lead' AND mm.res_id = cl.id
+        #     LEFT JOIN mail_tracking_value mtv ON mtv.mail_message_id = mm.id
+        #     JOIN property_sales_supervisor pss ON cl.supervisor_id = pss.id
+        #     JOIN res_users ru_sup ON pss.name = ru_sup.id
+        #     JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
+        #     LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
+        #     LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
+        #     LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
+        #     LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
+        #     WHERE TRIM(BOTH FROM LOWER(COALESCE(mtv.old_value_char, ''))) <> 'sales'
+        #         AND mm.subtype_id <> 5
+        # ),
+        # unioned_events AS (
+        #     SELECT * FROM lead_events
+        #     UNION ALL
+        #     SELECT * FROM activity_events
+        # ),
+        # reservation_summary AS (
+        #     SELECT
+        #         COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+        #         rp_wing.name AS wing_manager_name,
+        #         rp_sup.name AS supervisor_name,
+        #         rp.name AS sales_person,
+        #         COUNT(pr.id) AS reservation_count
+        #     FROM property_reservation pr
+        #     JOIN crm_lead cl ON cl.id = pr.crm_lead_id
+        #     JOIN filtered_leads fl ON fl.id = cl.id
+        #     JOIN res_users ru ON ru.id = cl.user_id
+        #     JOIN res_partner rp ON rp.id = ru.partner_id
+        #     JOIN property_sales_supervisor pss ON pss.id = cl.supervisor_id
+        #     JOIN res_users ru_sup ON ru_sup.id = pss.name
+        #     JOIN res_partner rp_sup ON rp_sup.id = ru_sup.partner_id
+        #     LEFT JOIN property_sales_wing psw ON psw.id = cl.wing_id
+        #     LEFT JOIN res_users ru_wing ON ru_wing.id = psw.manager_id
+        #     LEFT JOIN res_partner rp_wing ON rp_wing.id = ru_wing.partner_id
+        #     LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
+        #     GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person
+        # )
+        # SELECT
+        #     ue.wing_name, ue.wing_manager_name, ue.supervisor_name, ue.sales_person,
+        #     COUNT(*) FILTER (WHERE ue.event_type = 'Office Visit') AS office_visit_count,
+        #     COUNT(*) FILTER (WHERE ue.event_type = 'Site Visit')   AS site_visit_count,
+        #     COUNT(*) FILTER (WHERE ue.event_type = 'Call')         AS call_count,
+        #     COUNT(*) FILTER (WHERE ue.event_type = 'Email')        AS email_count,
+        #     COUNT(*) FILTER (WHERE ue.event_type = 'SMS')          AS sms_count,
+        #     (
+        #         COUNT(*) FILTER (WHERE ue.event_type = 'Office Visit') +
+        #         COUNT(*) FILTER (WHERE ue.event_type = 'Site Visit') +
+        #         COUNT(*) FILTER (WHERE ue.event_type = 'Call') +
+        #         COUNT(*) FILTER (WHERE ue.event_type = 'Email') +
+        #         COUNT(*) FILTER (WHERE ue.event_type = 'SMS')
+        #     ) AS total_key_events
+        # FROM unioned_events ue
+        # LEFT JOIN reservation_summary rs
+        #   ON ue.wing_name = rs.wing_name
+        #   AND ue.wing_manager_name = rs.wing_manager_name
+        #   AND ue.supervisor_name = rs.supervisor_name
+        #   AND ue.sales_person = rs.sales_person
+        # WHERE ue.event_type IS NOT NULL
+        # GROUP BY ue.wing_name, ue.wing_manager_name, ue.supervisor_name, ue.sales_person
+        # ORDER BY ue.wing_name, ue.wing_manager_name, ue.supervisor_name, ue.sales_person;
+        # """
         query = f"""
         WITH filtered_leads AS (
             SELECT cl.id, cl.stage_id, cl.user_id, cl.supervisor_id, cl.wing_id
@@ -118,7 +239,7 @@ class TeamActivityWizard(models.TransientModel):
                 rp.name AS sales_person,
                 rp_sup.name AS supervisor_name,
                 rp_wing.name AS wing_manager_name,
-                COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+                COALESCE(psw.name, 'No Wing') AS wing_name,
                 CASE
                     WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%expired%%'     THEN 'Expired'
                     WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%won%%'         THEN 'Won'
@@ -137,7 +258,6 @@ class TeamActivityWizard(models.TransientModel):
             LEFT JOIN property_sales_wing psw ON fl.wing_id = psw.id
             LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
             LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
-            LEFT JOIN property_wing_config pwc ON fl.wing_id = pwc.id
         ),
         activity_events AS (
             SELECT
@@ -145,7 +265,7 @@ class TeamActivityWizard(models.TransientModel):
                 rp.name AS sales_person,
                 rp_sup.name AS supervisor_name,
                 rp_wing.name AS wing_manager_name,
-                COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+                COALESCE(psw.name, 'No Wing') AS wing_name,
                 CASE
                     WHEN mm.subtype_id = 3 AND mtv.new_value_char IS NULL THEN
                         CASE mm.mail_activity_type_id
@@ -171,7 +291,6 @@ class TeamActivityWizard(models.TransientModel):
             LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
             LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
             LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
-            LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
             WHERE TRIM(BOTH FROM LOWER(COALESCE(mtv.old_value_char, ''))) <> 'sales'
                 AND mm.subtype_id <> 5
         ),
@@ -182,7 +301,7 @@ class TeamActivityWizard(models.TransientModel):
         ),
         reservation_summary AS (
             SELECT
-                COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+                COALESCE(psw.name, 'No Wing') AS wing_name,
                 rp_wing.name AS wing_manager_name,
                 rp_sup.name AS supervisor_name,
                 rp.name AS sales_person,
@@ -198,7 +317,6 @@ class TeamActivityWizard(models.TransientModel):
             LEFT JOIN property_sales_wing psw ON psw.id = cl.wing_id
             LEFT JOIN res_users ru_wing ON ru_wing.id = psw.manager_id
             LEFT JOIN res_partner rp_wing ON rp_wing.id = ru_wing.partner_id
-            LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
             GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person
         )
         SELECT
@@ -217,15 +335,14 @@ class TeamActivityWizard(models.TransientModel):
             ) AS total_key_events
         FROM unioned_events ue
         LEFT JOIN reservation_summary rs
-          ON ue.wing_name = rs.wing_name
-          AND ue.wing_manager_name = rs.wing_manager_name
-          AND ue.supervisor_name = rs.supervisor_name
-          AND ue.sales_person = rs.sales_person
+        ON ue.wing_name = rs.wing_name
+        AND ue.wing_manager_name = rs.wing_manager_name
+        AND ue.supervisor_name = rs.supervisor_name
+        AND ue.sales_person = rs.sales_person
         WHERE ue.event_type IS NOT NULL
         GROUP BY ue.wing_name, ue.wing_manager_name, ue.supervisor_name, ue.sales_person
         ORDER BY ue.wing_name, ue.wing_manager_name, ue.supervisor_name, ue.sales_person;
         """
-
         # Add wing_id param if it's not 'no_wing'
         if wing_condition.endswith("= %s"):
             self.env.cr.execute(query, tuple(params))

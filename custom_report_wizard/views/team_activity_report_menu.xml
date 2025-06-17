@@ -1,15 +1,15 @@
 <odoo>
-   
+
     <menuitem id="crm_menu_team_activity_reports"
               name="Team Activity Report"
-              parent="crm.crm_menu_report"
+              parent="advanced_property_management.property_report_menu"
               action="action_team_activity_wizard"
               sequence="260"
               groups="custom_report_wizard.team_activity_report"
               />
     <menuitem id="crm_menu_lead_analysis_reports"
               name="Lead Analysis Report"
-              parent="crm.crm_menu_report"
+              parent="advanced_property_management.property_report_menu"
               action="action_lead_analysis_wizard"
               sequence="270"
               groups="custom_report_wizard.lead_analysis_report"

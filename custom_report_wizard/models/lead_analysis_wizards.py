@@ -75,6 +75,8 @@ class LeadAnalysisWizard(models.TransientModel):
                 wings.append((str(w_id), w_name))
             if name_lower == "team - taj" and user.has_group('custom_report_wizard.group_team_taj_access'):
                 wings.append((str(w_id), w_name))
+            if name_lower == "team - raha" and user.has_group('custom_report_wizard.group_team_Raha_access'):
+                wings.append((str(w_id), w_name))
         return wings
 
 
@@ -112,143 +114,140 @@ class LeadAnalysisWizard(models.TransientModel):
                 params.append(int(self.wing_id))
 
         query = f"""
-            WITH filtered_leads AS (
-                SELECT cl.id, cl.stage_id, cl.user_id, cl.supervisor_id, cl.wing_id
-                FROM crm_lead cl
-                WHERE cl.create_date >= %s {wing_condition}
-            ),
-            lead_events AS (
+                WITH filtered_leads AS (
+                    SELECT cl.id, cl.stage_id, cl.user_id, cl.supervisor_id, cl.wing_id
+                    FROM crm_lead cl
+                    WHERE cl.create_date >= %s {wing_condition}
+                ),
+                lead_events AS (
+                    SELECT
+                        fl.id AS lead_id,
+                        rp.name AS sales_person,
+                        rp_sup.name AS supervisor_name,
+                        rp_wing.name AS wing_manager_name,
+                        COALESCE(psw.name, 'No Wing') AS wing_name,
+                        CASE 
+                            WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%expired%%' THEN 'Expired'
+                            WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%reservation%%' THEN 'Reservation'
+                            WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%follow%%' THEN 'Follow Up'
+                            WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%prospect%%' THEN 'Prospect'
+                            WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%lost%%' THEN 'Lost'
+                            ELSE NULL
+                        END AS event_type
+                    FROM filtered_leads fl
+                    JOIN crm_stage stage ON fl.stage_id = stage.id
+                    JOIN res_users ru ON fl.user_id = ru.id
+                    JOIN res_partner rp ON ru.partner_id = rp.id
+                    JOIN property_sales_supervisor pss ON fl.supervisor_id = pss.id
+                    JOIN res_users ru_sup ON pss.name = ru_sup.id
+                    JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
+                    LEFT JOIN property_sales_wing psw ON fl.wing_id = psw.id
+                    LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
+                    LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
+                ),
+                activity_events AS (
+                    SELECT 
+                        cl.id AS lead_id,
+                        rp.name AS sales_person,
+                        rp_sup.name AS supervisor_name,
+                        rp_wing.name AS wing_manager_name,
+                        COALESCE(psw.name, 'No Wing') AS wing_name,
+                        CASE 
+                            WHEN mtv.new_value_char = 'Lost' THEN 'Lost'
+                            ELSE NULL
+                        END AS event_type
+                    FROM crm_lead cl
+                    JOIN filtered_leads fl ON cl.id = fl.id
+                    JOIN res_users ru ON cl.user_id = ru.id
+                    JOIN res_partner rp ON ru.partner_id = rp.id
+                    JOIN mail_message mm ON mm.model = 'crm.lead' AND mm.res_id = cl.id
+                    LEFT JOIN mail_tracking_value mtv ON mm.id = mtv.mail_message_id
+                    JOIN property_sales_supervisor pss ON cl.supervisor_id = pss.id
+                    JOIN res_users ru_sup ON pss.name = ru_sup.id
+                    JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
+                    LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
+                    LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
+                    LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
+                    WHERE 
+                        TRIM(BOTH FROM LOWER(COALESCE(mtv.old_value_char, ''))) <> 'sales'
+                        AND mm.subtype_id <> 5
+                ),
+                unioned_events AS (
+                    SELECT * FROM lead_events
+                    UNION ALL
+                    SELECT * FROM activity_events
+                ),
+                event_counts AS (
+                    SELECT 
+                        wing_name,
+                        wing_manager_name,
+                        supervisor_name,
+                        sales_person,
+                        event_type,
+                        COUNT(*) AS count
+                    FROM unioned_events
+                    WHERE event_type IS NOT NULL
+                    GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person, event_type
+                ),
+                reservation_summary AS (
+                    SELECT 
+                        rp.name AS sales_person,
+                        rp_sup.name AS supervisor_name,
+                        rp_wing.name AS wing_manager_name,
+                        COALESCE(psw.name, 'No Wing') AS wing_name,
+                        COUNT(pr.id) AS reservation_count,
+                        SUM(CASE WHEN pr.status = 'sold' THEN 1 ELSE 0 END) AS sold_reservation_count
+                    FROM property_reservation pr
+                    JOIN crm_lead cl ON pr.crm_lead_id = cl.id
+                    JOIN res_users ru ON cl.user_id = ru.id
+                    JOIN res_partner rp ON ru.partner_id = rp.id
+                    JOIN property_sales_supervisor pss ON cl.supervisor_id = pss.id
+                    JOIN res_users ru_sup ON pss.name = ru_sup.id
+                    JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
+                    LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
+                    LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
+                    LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
+                    WHERE cl.create_date >= %s {wing_condition}
+                    GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person
+                )
                 SELECT
-                    fl.id AS lead_id,
-                    rp.name AS sales_person,
-                    rp_sup.name AS supervisor_name,
-                    rp_wing.name AS wing_manager_name,
-                    COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
+                    COALESCE(ec.wing_name, rs.wing_name, 'No Wing') AS wing_name,
+                    COALESCE(ec.wing_manager_name, rs.wing_manager_name) AS wing_manager_name,
+                    COALESCE(ec.supervisor_name, rs.supervisor_name) AS supervisor_name,
+                    COALESCE(ec.sales_person, rs.sales_person) AS sales_person,
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Prospect' THEN ec.count END), 0) AS prospect,
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Follow Up' THEN ec.count END), 0) AS follow_up,
+                    COALESCE(MAX(rs.reservation_count), 0) AS reservation_count,
+                    COALESCE(MAX(rs.sold_reservation_count), 0) AS sold_reservation_count,
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Expired' THEN ec.count END), 0) AS expired,
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Lost' THEN ec.count END), 0) AS lost,
+                    (COALESCE(MAX(CASE WHEN ec.event_type = 'Prospect' THEN ec.count END), 0) + 
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Follow Up' THEN ec.count END), 0) +
+                    COALESCE(MAX(rs.reservation_count), 0) + 
+                    COALESCE(MAX(rs.sold_reservation_count), 0) + 
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Expired' THEN ec.count END), 0) +
+                    COALESCE(MAX(CASE WHEN ec.event_type = 'Lost' THEN ec.count END), 0)) AS total,
                     CASE 
-                        WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%expired%%' THEN 'Expired'
-                        WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%reservation%%' THEN 'Reservation'
-                        WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%follow%%' THEN 'Follow Up'
-                        WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%prospect%%' THEN 'Prospect'
-                        WHEN stage.name::jsonb ->> 'en_US' ILIKE '%%lost%%' THEN 'Lost'
-                        ELSE NULL
-                    END AS event_type
-                FROM filtered_leads fl
-                JOIN crm_stage stage ON fl.stage_id = stage.id
-                JOIN res_users ru ON fl.user_id = ru.id
-                JOIN res_partner rp ON ru.partner_id = rp.id
-                JOIN property_sales_supervisor pss ON fl.supervisor_id = pss.id
-                JOIN res_users ru_sup ON pss.name = ru_sup.id
-                JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
-                LEFT JOIN property_sales_wing psw ON fl.wing_id = psw.id
-                LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
-                LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
-                LEFT JOIN property_wing_config pwc ON fl.wing_id = pwc.id
-            ),
-            activity_events AS (
-                SELECT 
-                    cl.id AS lead_id,
-                    rp.name AS sales_person,
-                    rp_sup.name AS supervisor_name,
-                    rp_wing.name AS wing_manager_name,
-                    COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
-                    CASE 
-                        WHEN mtv.new_value_char = 'Lost' THEN 'Lost'
-                        ELSE NULL
-                    END AS event_type
-                FROM crm_lead cl
-                JOIN filtered_leads fl ON cl.id = fl.id
-                JOIN res_users ru ON cl.user_id = ru.id
-                JOIN res_partner rp ON ru.partner_id = rp.id
-                JOIN mail_message mm ON mm.model = 'crm.lead' AND mm.res_id = cl.id
-                LEFT JOIN mail_tracking_value mtv ON mm.id = mtv.mail_message_id
-                JOIN property_sales_supervisor pss ON cl.supervisor_id = pss.id
-                JOIN res_users ru_sup ON pss.name = ru_sup.id
-                JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
-                LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
-                LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
-                LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
-                LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
-                WHERE 
-                    TRIM(BOTH FROM LOWER(COALESCE(mtv.old_value_char, ''))) <> 'sales'
-                    AND mm.subtype_id <> 5
-            ),
-            unioned_events AS (
-                SELECT * FROM lead_events
-                UNION ALL
-                SELECT * FROM activity_events
-            ),
-            event_counts AS (
-                SELECT 
-                    wing_name,
-                    wing_manager_name,
-                    supervisor_name,
-                    sales_person,
-                    event_type,
-                    COUNT(*) AS count
-                FROM unioned_events
-                WHERE event_type IS NOT NULL
-                GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person, event_type
-            ),
-            reservation_summary AS (
-                SELECT 
-                    rp.name AS sales_person,
-                    rp_sup.name AS supervisor_name,
-                    rp_wing.name AS wing_manager_name,
-                    COALESCE(pwc.name, psw.name, 'No Wing') AS wing_name,
-                    COUNT(pr.id) AS reservation_count,
-                    SUM(CASE WHEN pr.status = 'sold' THEN 1 ELSE 0 END) AS sold_reservation_count
-                FROM property_reservation pr
-                JOIN crm_lead cl ON pr.crm_lead_id = cl.id
-                JOIN res_users ru ON cl.user_id = ru.id
-                JOIN res_partner rp ON ru.partner_id = rp.id
-                JOIN property_sales_supervisor pss ON cl.supervisor_id = pss.id
-                JOIN res_users ru_sup ON pss.name = ru_sup.id
-                JOIN res_partner rp_sup ON ru_sup.partner_id = rp_sup.id
-                LEFT JOIN property_sales_wing psw ON cl.wing_id = psw.id
-                LEFT JOIN res_users ru_wing ON psw.manager_id = ru_wing.id
-                LEFT JOIN res_partner rp_wing ON ru_wing.partner_id = rp_wing.id
-                LEFT JOIN property_wing_config pwc ON cl.wing_id = pwc.id
-                WHERE cl.create_date >= %s {wing_condition}
-                GROUP BY wing_name, wing_manager_name, supervisor_name, sales_person
-            )
-            SELECT
-                COALESCE(ec.wing_name, rs.wing_name, 'No Wing') AS wing_name,
-                COALESCE(ec.wing_manager_name, rs.wing_manager_name) AS wing_manager_name,
-                COALESCE(ec.supervisor_name, rs.supervisor_name) AS supervisor_name,
-                COALESCE(ec.sales_person, rs.sales_person) AS sales_person,
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Prospect' THEN ec.count END), 0) AS prospect,
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Follow Up' THEN ec.count END), 0) AS follow_up,
-                COALESCE(MAX(rs.reservation_count), 0) AS reservation_count,
-                COALESCE(MAX(rs.sold_reservation_count), 0) AS sold_reservation_count,
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Expired' THEN ec.count END), 0) AS expired,
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Lost' THEN ec.count END), 0) AS lost,
-                (COALESCE(MAX(CASE WHEN ec.event_type = 'Prospect' THEN ec.count END), 0) + 
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Follow Up' THEN ec.count END), 0) +
-                COALESCE(MAX(rs.reservation_count), 0) + 
-                COALESCE(MAX(rs.sold_reservation_count), 0) + 
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Expired' THEN ec.count END), 0) +
-                COALESCE(MAX(CASE WHEN ec.event_type = 'Lost' THEN ec.count END), 0)) AS total,
-                CASE 
-                    WHEN COALESCE(ec.wing_name, rs.wing_name, 'No Wing') = 'No Wing' AND COALESCE(ec.wing_manager_name, rs.wing_manager_name) IS NOT NULL THEN '🟡 Missing wing_name'
-                    ELSE '✅ OK'
-                END AS data_flag
-            FROM event_counts ec
-            FULL OUTER JOIN reservation_summary rs 
-                ON ec.sales_person = rs.sales_person
-                AND ec.supervisor_name = rs.supervisor_name
-                AND ec.wing_name = rs.wing_name
-                AND ec.wing_manager_name = rs.wing_manager_name
-            GROUP BY 
-                COALESCE(ec.wing_name, rs.wing_name, 'No Wing'),
-                COALESCE(ec.wing_manager_name, rs.wing_manager_name),
-                COALESCE(ec.supervisor_name, rs.supervisor_name),
-                COALESCE(ec.sales_person, rs.sales_person)
-            ORDER BY 
-                COALESCE(ec.wing_name, rs.wing_name, 'No Wing'),
-                COALESCE(ec.wing_manager_name, rs.wing_manager_name),
-                COALESCE(ec.supervisor_name, rs.supervisor_name),
-                COALESCE(ec.sales_person, rs.sales_person);
-        """
+                        WHEN COALESCE(ec.wing_name, rs.wing_name, 'No Wing') = 'No Wing' AND COALESCE(ec.wing_manager_name, rs.wing_manager_name) IS NOT NULL THEN '🟡 Missing wing_name'
+                        ELSE '✅ OK'
+                    END AS data_flag
+                FROM event_counts ec
+                FULL OUTER JOIN reservation_summary rs 
+                    ON ec.sales_person = rs.sales_person
+                    AND ec.supervisor_name = rs.supervisor_name
+                    AND ec.wing_name = rs.wing_name
+                    AND ec.wing_manager_name = rs.wing_manager_name
+                GROUP BY 
+                    COALESCE(ec.wing_name, rs.wing_name, 'No Wing'),
+                    COALESCE(ec.wing_manager_name, rs.wing_manager_name),
+                    COALESCE(ec.supervisor_name, rs.supervisor_name),
+                    COALESCE(ec.sales_person, rs.sales_person)
+                ORDER BY 
+                    COALESCE(ec.wing_name, rs.wing_name, 'No Wing'),
+                    COALESCE(ec.wing_manager_name, rs.wing_manager_name),
+                    COALESCE(ec.supervisor_name, rs.supervisor_name),
+                    COALESCE(ec.sales_person, rs.sales_person);
+            """
         params.append(self.date_from)
         # Only add the wing_id if it's not 'no_wing'
         if wing_condition.endswith("= %s"):
